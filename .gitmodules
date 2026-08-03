@@ -1,9 +1,15 @@
 [submodule "ExampleWebServer"]
 	path = ExampleWebServer
 	url = https://github.com/eng-thesis/example-web-server.git
-[submodule "reverse-proxy"]
-	path = reverse-proxy
-	url = https://github.com/eng-thesis/nginx-infra-reverse-proxy.git
 [submodule "hypervisor"]
 	path = hypervisor
 	url = https://github.com/eng-thesis/hypervisor.git
+[submodule "orchestrator"]
+	path = orchestrator
+	url = https://github.com/aura-recon/orchestrator.git
+[submodule "example-web-server"]
+	path = example-web-server
+	url = https://github.com/aura-recon/example-web-server.git
+[submodule "nginx-infra-reverse-proxy"]
+	path = nginx-infra-reverse-proxy
+	url = https://github.com/aura-recon/nginx-infra-reverse-proxy.git

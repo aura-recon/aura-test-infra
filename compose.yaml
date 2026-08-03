@@ -1,53 +1,111 @@
 services:
   rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "8080:15672"
-    env_file:
-      - .env.rabbitmq
+    image: rabbitmq:4-management
     container_name: rabbitmq
     hostname: rabbitmq
+    ports:
+      - "8080:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     networks:
-      - test-network
+      - infra-test-net
+    restart: unless-stopped
+  
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    container_name: orchestrator
+    hostname: orchestrator
+    ports:
+      - "8000:8000"
+    environment:
+      ConnectionStrings__RabbitMq: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+    networks:
+      - infra-test-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
   hypervisor:
     build:
-      context: ./hypervisor
+      context: ./hypervisor/hypervisor
       dockerfile: Dockerfile
     container_name: hypervisor
-    restart: always
-    env_file:
-      - .env.hv
+    hostname: hypervisor
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     networks:
-      - test-network
+      - infra-test-net
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
-      - rabbitmq
-  nginx:
-    build:
-      context: ./reverse-proxy
-      dockerfile: Dockerfile
-    container_name: test-nginx
-    restart: always
-    ports:
-      - "80:80"
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs
+    hostname: seaweedfs
     networks:
-      - test-network
+      - infra-test-net
     volumes:
-      - ./reverse-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
-  example-web-server:
-    container_name: test-web-server
+      - seaweedfs_data:/data
+    command: >
+      server -s3
+      -s3.port=8333
+      -ip.bind=0.0.0.0
+      -dir=/data
+      -master.volumeSizeLimitMB=1024
+      -master.max=1
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O http://127.0.0.1:9333/cluster/status || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  nginx-infra-reverse-proxy:
     build:
-      context: ./ExampleWebServer
+      context: ./nginx-infra-reverse-proxy/reverse-proxy
       dockerfile: Dockerfile
+    container_name: nginx-infra-reverse-proxy
+    hostname: nginx-infra-reverse-proxy
     networks:
-      - test-network
+      - infra-test-net
+    volumes:
+      - ./nginx-infra-reverse-proxy/reverse-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped
+
+  example-web-server:
+    build:
+      context: ./ExampleWebServer/ExampleWebServer
+      dockerfile: Dockerfile
+    container_name: example-web-server
+    hostname: example-web-server
+    networks:
+      - infra-test-net
+    restart: unless-stopped
+
 networks:
-  test-network:
-    name: test-network
+  infra-test-net:
+    name: infra-test-net
     driver: bridge
     ipam:
       config:
-          - subnet: 172.10.0.0/16
-            gateway: 172.10.0.1
+          - subnet: 172.16.0.0/16
+            gateway: 172.16.0.1
 
+volumes:
+  seaweedfs_data:
