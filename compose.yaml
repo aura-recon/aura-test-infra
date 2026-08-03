@@ -90,7 +90,7 @@ services:
 
   example-web-server:
     build:
-      context: ./ExampleWebServer/ExampleWebServer
+      context: ./example-web-server/ExampleWebServer
       dockerfile: Dockerfile
     container_name: example-web-server
     hostname: example-web-server
