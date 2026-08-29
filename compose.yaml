@@ -32,6 +32,11 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+      
     restart: unless-stopped
 
   hypervisor:
@@ -44,6 +49,8 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    group_add:
+      - ${DOCKER_GID:?Please set the this env in .env file}
     networks:
       - infra-test-net
     volumes:
@@ -74,6 +81,33 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18-alpine
+    hostname: postgres
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      PGDATA: /var/lib/postgresql/18/docker
+      POSTGRES_DB: aura-db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=pl-PL --encoding=UTF8"
+      TZ: Europe/Warsaw
+    stop_grace_period: 45s
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - postgres_data_test:/var/lib/postgresql
+    networks:
+      - infra-test-net
     restart: unless-stopped
 
   nginx-infra-reverse-proxy:
